@@ -16,5 +16,14 @@
       <description>Alright folks, here we are. The first of (hopefully) many blog posts, and this one is on a project that has been an absolute blast. For my Advanced Sports Data course, my professor gave us the assignment of using our choice of various machine learning methods to create a model to predict the outcome of men’s college basketball games based on prior data, and use that model to attempt to find the results of the NCAA tournament this year.</description>
     </item>
     
+    <item>
+      <title>test post (ignore)</title>
+      <link>http://brandenstates.github.io/2021/03/27/test-post-ignore/</link>
+      <pubDate>Sat, 27 Mar 2021 00:00:00 +0000</pubDate>
+      
+      <guid>http://brandenstates.github.io/2021/03/27/test-post-ignore/</guid>
+      <description>testing</description>
+    </item>
+    
   </channel>
 </rss>
