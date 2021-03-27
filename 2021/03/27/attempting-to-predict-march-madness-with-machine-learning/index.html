@@ -146,14 +146,6 @@ summary(rf_recipe)</code></pre>
 ##          L 18206   362
 ##          W   349 18232</code></pre>
 <p>Here’s a confidence matrix, basically showing the cases when our model predicted the outcomes correctly and incorrectly. In the case of losses, it predicted a loss and was correct 18,206 times, but the result was a win only 349 times. Not bad.</p>
-<pre><code>## # A tibble: 1 x 3
-##   .metric .estimator .estimate
-##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
-## 1 roc_auc binary       0.00107</code></pre>
-<pre><code>## # A tibble: 1 x 3
-##   .metric .estimator .estimate
-##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
-## 1 roc_auc binary         0.999</code></pre>
 <pre class="r"><code>metrics(testpredict, Outcome, .pred_class)</code></pre>
 <pre><code>## # A tibble: 2 x 3
 ##   .metric  .estimator .estimate
