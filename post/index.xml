@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>Branden States&#39; Github Site</title>
-    <link>http://brandenstates.github.io/</link>
-    <description>Recent content on Branden States&#39; Github Site</description>
+    <title>Posts on Branden States&#39; Github Site</title>
+    <link>http://brandenstates.github.io/post/</link>
+    <description>Recent content in Posts on Branden States&#39; Github Site</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
-    <lastBuildDate>Sat, 27 Mar 2021 00:00:00 +0000</lastBuildDate><atom:link href="http://brandenstates.github.io/index.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>Sat, 27 Mar 2021 00:00:00 +0000</lastBuildDate><atom:link href="http://brandenstates.github.io/post/index.xml" rel="self" type="application/rss+xml" />
     <item>
       <title>Attempting to Predict March Madness with Machine Learning</title>
       <link>http://brandenstates.github.io/2021/03/27/attempting-to-predict-march-madness-with-machine-learning/</link>
@@ -24,16 +24,6 @@
       <guid>http://brandenstates.github.io/2021/03/27/full-march-madness-2021-bracket/</guid>
       <description>Just in case you wanted to see my full ESPN bracket, here it is:
 https://fantasy.espn.com/tournament-challenge-bracket/2021/en/entry?entryID=48742608</description>
-    </item>
-    
-    <item>
-      <title>About Branden States</title>
-      <link>http://brandenstates.github.io/about/</link>
-      <pubDate>Mon, 01 Jan 0001 00:00:00 +0000</pubDate>
-      
-      <guid>http://brandenstates.github.io/about/</guid>
-      <description>Hey, I&amp;rsquo;m Branden.
-I&amp;rsquo;m a Junior student in the College of Journalism and Mass Communications at the University of Nebraska-Lincoln studying Sports Media and Communications, with minors in Statistics and Mathematics in an attempt to make my own sort of &amp;ldquo;path&amp;rdquo; for studying Sports Data Analytics. Sports have always been a huge part of my life, whether it was playing or watching them, and when I decided that Computer Engineering wasn&amp;rsquo;t going to be the career for me after one semester of classes, being able to apply my knowledge of code and computers in a field that actually interested me was too much to pass up.</description>
     </item>
     
   </channel>
