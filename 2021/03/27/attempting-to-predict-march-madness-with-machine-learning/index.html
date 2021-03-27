@@ -1,0 +1,1567 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="generator" content="Hugo 0.81.0" />
+
+
+<title>Attempting to Predict March Madness with Machine Learning - Branden States&#39; Github Site</title>
+<meta property="og:title" content="Attempting to Predict March Madness with Machine Learning - Branden States&#39; Github Site">
+
+
+  <link href='http://brandenstates.github.io/favicon.ico' rel='icon' type='image/x-icon'/>
+
+
+
+  
+
+
+
+
+
+
+
+
+<link href='//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/styles/github.min.css' rel='stylesheet' type='text/css' />
+
+
+
+<link rel="stylesheet" href="/css/fonts.css" media="all">
+<link rel="stylesheet" href="/css/main.css" media="all">
+
+
+
+  </head>
+  <body>
+    <div class="wrapper">
+      <header class="header">
+        <nav class="nav">
+  <a href="/" class="nav-logo">
+    <img src="/images/logo.png"
+         width="50"
+         height="50"
+         alt="Logo">
+  </a>
+
+  <ul class="nav-links">
+    
+    <li><a href="/about/">About</a></li>
+    
+    <li><a href="https://github.com/brandenstates">GitHub</a></li>
+    
+    <li><a href="https://twitter.com/brandenstates">Twitter</a></li>
+    
+  </ul>
+</nav>
+
+      </header>
+
+
+<main class="content" role="main">
+
+  <article class="article">
+    
+    <span class="article-duration">15 min read</span>
+    
+
+    <h1 class="article-title">Attempting to Predict March Madness with Machine Learning</h1>
+
+    
+    <span class="article-date">2021-03-27</span>
+    
+
+    <div class="article-content">
+      
+<script src="http://brandenstates.github.io/2021/03/27/attempting-to-predict-march-madness-with-machine-learning/index_files/header-attrs/header-attrs.js"></script>
+<script src="http://brandenstates.github.io/2021/03/27/attempting-to-predict-march-madness-with-machine-learning/index_files/kePrint/kePrint.js"></script>
+<link href="http://brandenstates.github.io/2021/03/27/attempting-to-predict-march-madness-with-machine-learning/index_files/lightable/lightable.css" rel="stylesheet" />
+
+
+<p>Alright folks, here we are. The first of (hopefully) many blog posts, and this one is on a project that has been an absolute blast. For my Advanced Sports Data course, my professor gave us the assignment of using our choice of various machine learning methods to create a model to predict the outcome of men’s college basketball games based on prior data, and use that model to attempt to find the results of the NCAA tournament this year. We were taught how to create the model using various methods, but it was up to us to find the statistics we felt had the best chance of determining the outcomes of games. At the time of writing this, my bracket is actually doing pretty well, so I’m going to walk through how I did it.</p>
+<pre class="r"><code>games &lt;- read_csv(&quot;cbblogs1521.csv&quot;) %&gt;% 
+  mutate(
+    TrueShooting = (TeamScore / (2 * (TeamFGA + 0.475 * TeamFTA))),
+    Possessions = .5*(TeamFGA - TeamOffRebounds + TeamTurnovers + (.475 * TeamFTA)) + .5*(OpponentFGA - OpponentOffRebounds + OpponentTurnovers + (.475 * OpponentFTA)),
+    NetRating = (100 * ((TeamScore - OpponentScore) / Possessions))) %&gt;%
+  group_by(Team, Season) %&gt;%
+  mutate(
+    Rolling_Mean_TrueShooting = rollmean(lag(TrueShooting,n=1), k = 4, fill=TrueShooting),
+    Cumulative_Mean_NetRating = cummean(NetRating)
+    ) %&gt;% ungroup() %&gt;% 
+  mutate(
+    Location = case_when(
+      str_trim(HomeAway) == &quot;@&quot; ~ &quot;A&quot;,
+      str_trim(HomeAway) == &quot;N&quot; ~ &quot;N&quot;,
+      TRUE ~ &quot;H&quot;
+    ),
+    Outcome = case_when(
+    grepl(&quot;W&quot;, W_L) ~ &quot;W&quot;, 
+    grepl(&quot;L&quot;, W_L) ~ &quot;L&quot;
+    )
+  ) %&gt;%
+  mutate(Outcome = as.factor(Outcome))</code></pre>
+<p>I’m going to walk through some of the code I used, I’ll save you all the pain of having to read through all of it but I’ll go through what I feel is worth knowing about. I’m creating the variables I use to create my model in this block, you can see the formulas for TrueShooting and Possessions, which they don’t track so we have to use a formula to create an accurate estimate. I also use Net Rating, which uses that Possessions metric and creates a rating based on the score differential for every game. You’ll notice the code for Rolling_Mean_TrueShooting and Cumulative_Mean_NetRating, all this means is that I’m using the average true shooting percentage from the last four games, and the cumulative net rating over the course of the season. I felt using rolling means for true shooting allowed for better representation of hot (or cold) shooting streaks and a cumulative net rating allowed for a full season’s worth of evaluation for each team. The rest is just creating metrics we need, like location of games and the outcome of said games, which is pretty important considering that’s what we are trying to predict.</p>
+<pre class="r"><code>rf_split &lt;- initial_split(bothsides, prop = .8)
+rf_train &lt;- training(rf_split)
+rf_test &lt;- testing(rf_split)</code></pre>
+<p>Alright into the fun stuff. Here I am splitting the data we were provided, which was the game logs of every D1 college basketball game dating back to 2015, into 80% training and 20% testing data. This means our model is going to use 80% of the data provided to fit itself based on the games, their stats, and their outcomes, and we can test it out on the 20% of testing data which the model has never seen before.</p>
+<pre class="r"><code>rf_recipe &lt;- 
+  recipe(Outcome ~ ., data = rf_train) %&gt;% 
+  update_role(Team, Opponent, Date, Season, new_role = &quot;ID&quot;) %&gt;%
+  step_normalize(all_predictors())
+
+summary(rf_recipe)</code></pre>
+<pre><code>## # A tibble: 11 x 4
+##    variable                           type    role      source  
+##    &lt;chr&gt;                              &lt;chr&gt;   &lt;chr&gt;     &lt;chr&gt;   
+##  1 Season                             nominal ID        original
+##  2 Team                               nominal ID        original
+##  3 Date                               date    ID        original
+##  4 Opponent                           nominal ID        original
+##  5 Rolling_Mean_TrueShooting          numeric predictor original
+##  6 Cumulative_Mean_NetRating          numeric predictor original
+##  7 TeamSRS                            numeric predictor original
+##  8 Opponent_Rolling_Mean_TrueShooting numeric predictor original
+##  9 Opponent_Cumulative_Mean_NetRating numeric predictor original
+## 10 OpponentSRS                        numeric predictor original
+## 11 Outcome                            nominal outcome   original</code></pre>
+<p>Here’s where we can see what values we’re using for our model, or our “recipe”. ID roles are for identification of who was playing and when the game was played, predictor roles are for the variables used to make predictions, and the sole outcome role goes to the outcome of games. I use the metrics I mentioned earlier as well as Team and Opponent SRS, which is provided in the data.</p>
+<pre class="r"><code>rf_mod &lt;- 
+  rand_forest() %&gt;% 
+  set_engine(&quot;ranger&quot;) %&gt;%
+  set_mode(&quot;classification&quot;)</code></pre>
+<p>We had our choice of a couple different methods to use to create our model, and I chose a random forest. A random forest is a large amount of decision trees that are used to predict the outcome of games based off of basically a bunch of if/else statements. Put simply, if this stat is less than a certain amount, this is the result, if the stat is greater than or equal to that amount, this is the result. Each one of these statements is a “branch” on the decision “tree”. And by using a large number of these decision trees, we create a large number of predictions, and the most common of those predictions gets used. In our case, the prediction is the outcome of the games.</p>
+<pre class="r"><code>metrics(trainpredict, Outcome, .pred_class)</code></pre>
+<pre><code>## # A tibble: 2 x 3
+##   .metric  .estimator .estimate
+##   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+## 1 accuracy binary         0.981
+## 2 kap      binary         0.962</code></pre>
+<p>After the creation and fitting of our model, here’s how it did against the data it used to train itself. Obviously you expect it to be pretty accurate, because its predicting games that it had the data for, but a 98% accuracy on estimates is still pretty solid.</p>
+<pre class="r"><code>trainpredict %&gt;%
+  conf_mat(Outcome, .pred_class)</code></pre>
+<pre><code>##           Truth
+## Prediction     L     W
+##          L 18206   362
+##          W   349 18232</code></pre>
+<p>Here’s a confidence matrix, basically showing the cases when our model predicted the outcomes correctly and incorrectly. In the case of losses, it predicted a loss and was correct 18,206 times, but the result was a win only 349 times. Not bad.</p>
+<pre><code>## # A tibble: 1 x 3
+##   .metric .estimator .estimate
+##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+## 1 roc_auc binary       0.00107</code></pre>
+<pre><code>## # A tibble: 1 x 3
+##   .metric .estimator .estimate
+##   &lt;chr&gt;   &lt;chr&gt;          &lt;dbl&gt;
+## 1 roc_auc binary         0.999</code></pre>
+<pre class="r"><code>metrics(testpredict, Outcome, .pred_class)</code></pre>
+<pre><code>## # A tibble: 2 x 3
+##   .metric  .estimator .estimate
+##   &lt;chr&gt;    &lt;chr&gt;          &lt;dbl&gt;
+## 1 accuracy binary         0.740
+## 2 kap      binary         0.480</code></pre>
+<p>Now for the testing metrics. Remember, the model hasn’t seen this data so we can’t expect it to be as accurate. Still, when used against data it hasn’t seen before, it predicted the outcome of games 74% of the time, which is still pretty solid.</p>
+<p>Now it’s time to start applying our model to this year’s tournament. Now remember, I created this bracket prior to the tournament starting. Let’s start with the play in games.</p>
+<pre class="r"><code>playinround %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Norfolk State
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Appalachian State
+</td>
+<td style="text-align:right;">
+0.4798516
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Wichita State
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Drake
+</td>
+<td style="text-align:right;">
+0.8255373
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Mount St. Mary’s
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Texas Southern
+</td>
+<td style="text-align:right;">
+0.2348040
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michigan State
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+UCLA
+</td>
+<td style="text-align:right;">
+0.8754524
+</td>
+</tr>
+</tbody>
+</table>
+<p>So looking back to the first four games, we predicted Norfolk State had a 53% chance of beating Appalachian State, Wichita State had a 82% chance of losing to Drake, Mount St. Mary’s had about a 77% chance to beat Texas Southern, and Michigan State had an 87% chance of losing to UCLA. Our model got 3/4 of those right (hey check that out, 75% accuracy is pretty close to 74% like I said before), it missed the Texas Southern win though. So now you know how these tables are read, lets start working on the west region.</p>
+<p>Before we get too far into this, I wanted to mention that our class motto for our online tournament challenge was “Trust your model, coward”, and I stuck to this. If my model had a team winning by the slightest of margins, I went with it. No gut predictions, no overruling the absurd outcomes, but hey, it’s March, nothing is too absurd, right?</p>
+<pre class="r"><code>westregional %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Creighton
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+UC-Santa Barbara
+</td>
+<td style="text-align:right;">
+0.3446714
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Southern California
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Drake
+</td>
+<td style="text-align:right;">
+0.3355889
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Kansas
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Eastern Washington
+</td>
+<td style="text-align:right;">
+0.4604135
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Iowa
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Grand Canyon
+</td>
+<td style="text-align:right;">
+0.2815111
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Oklahoma
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Missouri
+</td>
+<td style="text-align:right;">
+0.4916802
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Gonzaga
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Norfolk State
+</td>
+<td style="text-align:right;">
+0.1672595
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Virginia
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Ohio
+</td>
+<td style="text-align:right;">
+0.1916960
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Oregon
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Virginia Commonwealth
+</td>
+<td style="text-align:right;">
+0.8134913
+</td>
+</tr>
+</tbody>
+</table>
+<p>So looking back, I missed two games in the first round of the west. My model liked the favorites for the most part, so it missed the Virginia-Ohio upset, but also worth noting, the Oregon-VCU game didn’t actually get played, so I could have had that upset right, but hey, we’ll never know. Pretty solid predictions, but nothing too crazy. Just you wait.</p>
+<pre class="r"><code>westregionalsecond %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Virginia Commonwealth
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Iowa
+</td>
+<td style="text-align:right;">
+0.7075484
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Southern California
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Kansas
+</td>
+<td style="text-align:right;">
+0.4111571
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Gonzaga
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Oklahoma
+</td>
+<td style="text-align:right;">
+0.3946532
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Creighton
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Virginia
+</td>
+<td style="text-align:right;">
+0.4878429
+</td>
+</tr>
+</tbody>
+</table>
+<p>For the Round of 32 in the West, I had VCU losing to Iowa, which for all we know, could have happened, but VCU had to get COVID and lose by default, so Oregon went on and ended up beating Iowa. But would you look at that, I was correct on three quarters of the games again, notably the USC upset over Kansas.</p>
+<pre class="r"><code>westregionalthird %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Gonzaga
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Creighton
+</td>
+<td style="text-align:right;">
+0.3309778
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Iowa
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Southern California
+</td>
+<td style="text-align:right;">
+0.4358532
+</td>
+</tr>
+</tbody>
+</table>
+<p>And now we’re caught up to the Sweet Sixteen in the West. Iowa is no longer in the running, so having them going to the Elite Eight hurts, but I have Gonzaga beating Creighton and moving on.</p>
+<pre class="r"><code>westregionalfinal %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Gonzaga
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Iowa
+</td>
+<td style="text-align:right;">
+0.4246421
+</td>
+</tr>
+</tbody>
+</table>
+<p>Well, who would have guessed, my model has Gonzaga winning the West. No surprise I guess, but looking back, it would have been interesting to see how well it would have done if that VCU-Oregon game had happened, but Oregon has been on a hot streak, so it probably wouldn’t have changed anything. Time for the East region.</p>
+<pre class="r"><code>eastregional %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Texas
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Abilene Christian
+</td>
+<td style="text-align:right;">
+0.5379310
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Colorado
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Georgetown
+</td>
+<td style="text-align:right;">
+0.4285944
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Alabama
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Iona
+</td>
+<td style="text-align:right;">
+0.1698706
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Connecticut
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Maryland
+</td>
+<td style="text-align:right;">
+0.5218484
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michigan
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Mount St. Mary’s
+</td>
+<td style="text-align:right;">
+0.1454325
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Florida State
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+North Carolina-Greensboro
+</td>
+<td style="text-align:right;">
+0.1956706
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Louisiana State
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+St. Bonaventure
+</td>
+<td style="text-align:right;">
+0.4545198
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Brigham Young
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+UCLA
+</td>
+<td style="text-align:right;">
+0.2636048
+</td>
+</tr>
+</tbody>
+</table>
+<p>Not sure why this table decided to be out of order, but right off the bat, there’s something big brewing. My model says Texas has a 53% chance of losing to Abilene Christian. I genuinely laughed when I saw this at first, but hey, trust the model, right? Safe to say I’m glad I did. Other than that, my model was correct on the upset of Maryland over UConn, and only missed one game in the first round, which was the UCLA upset over BYU, which ends up hurting quite a bit. But hey, 7 for 8 in the first round is pretty freaking good, especially with that massive upset over Texas.</p>
+<pre class="r"><code>eastregionalsecond %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Brigham Young
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Abilene Christian
+</td>
+<td style="text-align:right;">
+0.3923778
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Maryland
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Alabama
+</td>
+<td style="text-align:right;">
+0.7643921
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Colorado
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Florida State
+</td>
+<td style="text-align:right;">
+0.7289714
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Michigan
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Louisiana State
+</td>
+<td style="text-align:right;">
+0.3804905
+</td>
+</tr>
+</tbody>
+</table>
+<p>East Round of 32, we’ve got three quarters of the games right again. UCLA beat Abilene Christian in place of BYU, but that just means I had a team that isn’t in the tournament anymore going farther in. Other than that, no surprises.</p>
+<pre class="r"><code>eastregionalthird %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Brigham Young
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Alabama
+</td>
+<td style="text-align:right;">
+0.5938540
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Colorado
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Michigan
+</td>
+<td style="text-align:right;">
+0.7228444
+</td>
+</tr>
+</tbody>
+</table>
+<p>Sweet Sixteen in the east, I’ve got BYU losing to Alabama and Colorado losing to Michigan. No surprises, but looking back, I realized there was a mistake in my original code. I had UConn playing BYU instead of Alabama and losing to BYU because my professor provided the outline for us to work off of, and I forgot to change UConn to Alabama. Well, crap. I fixed it, and now I have Alabama beating BYU which would have put them in the Elite 8 instead of BYU, like my model said. Now I’m hoping UCLA pulls off the upset against Alabama in order to prevent another miss and potential points for my opponents in the class, guess we’ll have to see what happens. Those are missed points for me, but I guess it’s in the past, that’s why double checking is a good idea.</p>
+<pre class="r"><code>eastregionalfinal %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Michigan
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Brigham Young
+</td>
+<td style="text-align:right;">
+0.4736921
+</td>
+</tr>
+</tbody>
+</table>
+<p>Luckily my model has Michigan winning the East. Another 1 seed, but another prediction I’m pretty happy with. Let’s move on to the south region.</p>
+<pre class="r"><code>southregional %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Arkansas
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Colgate
+</td>
+<td style="text-align:right;">
+0.7574349
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Baylor
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Hartford
+</td>
+<td style="text-align:right;">
+0.1316222
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Purdue
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+North Texas
+</td>
+<td style="text-align:right;">
+0.5319921
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Ohio State
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Oral Roberts
+</td>
+<td style="text-align:right;">
+0.2043063
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Texas Tech
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Utah State
+</td>
+<td style="text-align:right;">
+0.6377397
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Florida
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Virginia Tech
+</td>
+<td style="text-align:right;">
+0.7230071
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Villanova
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Winthrop
+</td>
+<td style="text-align:right;">
+0.3201913
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+North Carolina
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Wisconsin
+</td>
+<td style="text-align:right;">
+0.5957056
+</td>
+</tr>
+</tbody>
+</table>
+<p>The south is where my model didn’t do so hot at first, and is probably the region it did the worst in so far. It did have North Texas beating Purdue, which I was pretty proud about, but it also had Colgate, Utah State, and Virginia Tech upsetting their opponents, which were all misses. For a little bit of background, Colgate was loved by many of my classmates’ models. Statistically speaking, they should have gone deep into the tournament. Unfortunately, Arkansas didn’t let that happen.</p>
+<pre class="r"><code>southregionalsecond %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Utah State
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Colgate
+</td>
+<td style="text-align:right;">
+0.6580722
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Villanova
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+North Texas
+</td>
+<td style="text-align:right;">
+0.3512397
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Virginia Tech
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Ohio State
+</td>
+<td style="text-align:right;">
+0.5950071
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Baylor
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Wisconsin
+</td>
+<td style="text-align:right;">
+0.4049024
+</td>
+</tr>
+</tbody>
+</table>
+<p>At this point, I’m basically half wrong already, but at least I predicted the winners correctly for the Baylor-Wisconsin and Villanova-North Texas games. Not much else to say, except maybe some spiteful words for Oral Roberts and Colgate for ruining everything.</p>
+<pre class="r"><code>southregionalthird %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Colgate
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Ohio State
+</td>
+<td style="text-align:right;">
+0.3635714
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Baylor
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Villanova
+</td>
+<td style="text-align:right;">
+0.4004643
+</td>
+</tr>
+</tbody>
+</table>
+<p>All caught up. Like I said, my model, along with many others, liked Colgate a lot. It also has Baylor winning against Villanova, we’ll have to wait and see what happens.</p>
+<pre class="r"><code>southregionalfinal %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Baylor
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Colgate
+</td>
+<td style="text-align:right;">
+0.4273556
+</td>
+</tr>
+</tbody>
+</table>
+<p>Ultimately, Baylor wins the South. Some people in my class had Colgate moving even farther, luckily I was able to prevent any further damage, but like I said, didn’t really do too well in the South overall. To this point, we’ve got the one seeds winning their respected regions across the board. Not for long.</p>
+<pre class="r"><code>midwestregional %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Houston
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Cleveland State
+</td>
+<td style="text-align:right;">
+0.2417548
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Illinois
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Drexel
+</td>
+<td style="text-align:right;">
+0.2225770
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Loyola (IL)
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Georgia Tech
+</td>
+<td style="text-align:right;">
+0.3619310
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Oklahoma State
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Liberty
+</td>
+<td style="text-align:right;">
+0.4632810
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+West Virginia
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Morehead State
+</td>
+<td style="text-align:right;">
+0.2275302
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tennessee
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Oregon State
+</td>
+<td style="text-align:right;">
+0.2052960
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Clemson
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Rutgers
+</td>
+<td style="text-align:right;">
+0.5888278
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+San Diego State
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Syracuse
+</td>
+<td style="text-align:right;">
+0.2197651
+</td>
+</tr>
+</tbody>
+</table>
+<p>Time for the Midwest. My model said only one upset, and that’s Rutgers over Clemson, which was correct. Unfortunately, Oregon State and Syracuse had to go and pull off their own upsets, but again, I got three quarters of the games right, not too bad if I say so myself.</p>
+<pre class="r"><code>midwestregionalsecond %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Rutgers
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Houston
+</td>
+<td style="text-align:right;">
+0.7347921
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Illinois
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Loyola (IL)
+</td>
+<td style="text-align:right;">
+0.5471960
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Tennessee
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Oklahoma State
+</td>
+<td style="text-align:right;">
+0.3104111
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+San Diego State
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+West Virginia
+</td>
+<td style="text-align:right;">
+0.1480587
+</td>
+</tr>
+</tbody>
+</table>
+<p>Here’s where it gets interesting. My model liked Loyola, and rightly so. Down goes the first one seed, and what do you know, it was right. Must have taken Sister Jean’s prayers into account as a predictor variable. Unfortunately, my model liked San Diego State quite a bit, enough so to knock off the three seed that had already lost to Syracuse. Oregon State also had to go and mess everything up again, because my model had Tennessee moving on to the Sweet Sixteen.</p>
+<pre class="r"><code>midwestregionalthird %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+San Diego State
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Houston
+</td>
+<td style="text-align:right;">
+0.5743786
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Loyola (IL)
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Tennessee
+</td>
+<td style="text-align:right;">
+0.4593992
+</td>
+</tr>
+</tbody>
+</table>
+<p>It’s at this point I realize I’ve messed up again. In my model, Houston moves on. For some reason on my online bracket, I have San Diego State in the Elite Eight. Well, that hurts considering Houston is still in this thing. Loyola moves on, let’s see how much my error screws me up.</p>
+<pre class="r"><code>midwestregionalfinal %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Loyola (IL)
+</td>
+<td style="text-align:left;">
+L
+</td>
+<td style="text-align:left;">
+Houston
+</td>
+<td style="text-align:right;">
+0.5836317
+</td>
+</tr>
+</tbody>
+</table>
+<p>Ouch. My model says Houston wins. Problem with that, I had Loyola playing SDSU in the Midwest final and winning the region. So, looking forward, this mistake could really hurt me, but it could also help me if Loyola pulls it off. Onto the Final Four.</p>
+<pre class="r"><code>finalfourresults %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Baylor
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Loyola (IL)
+</td>
+<td style="text-align:right;">
+0.3792516
+</td>
+</tr>
+<tr>
+<td style="text-align:left;">
+Gonzaga
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Michigan
+</td>
+<td style="text-align:right;">
+0.4289167
+</td>
+</tr>
+</tbody>
+</table>
+<p>Gonzaga-Michigan and Baylor-Loyola for the Final Four. Still obtainable, and my model has Gonzaga and Baylor facing off in the championship. In case you were curious, if it hadn’t been for my error, Baylor loses to Houston and we have a Gonzaga-Houston final instead.</p>
+<pre class="r"><code>champs %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
+<table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
+<thead>
+<tr>
+<th style="text-align:left;">
+Team
+</th>
+<th style="text-align:left;">
+.pred_class
+</th>
+<th style="text-align:left;">
+Opponent
+</th>
+<th style="text-align:right;">
+.pred_L
+</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align:left;">
+Gonzaga
+</td>
+<td style="text-align:left;">
+W
+</td>
+<td style="text-align:left;">
+Baylor
+</td>
+<td style="text-align:right;">
+0.3790897
+</td>
+</tr>
+</tbody>
+</table>
+<p>My model says Gonzaga’s got a 63% chance of beating Baylor and winning the national championship. It also had them beating Houston, so the final result of my bracket stays the same regardless.</p>
+<p>So looking back, I made some human errors that messed up what is already a pretty decent bracket. Prior to today’s games, I’m in the top .6% of ESPN Tournament Challenge brackets and tied for first in the class. I’m now wondering what could have been, and a blog post that was supposed to be bragging about my pretty awesome bracket is now just pointing out that it could have been better. So, here’s where I’m at so far.</p>
+<p><img src="bracket.png" /></p>
+<p>In order to stay in first in my class, I need UCLA and Syracuse to pull off upsets against Alabama and Houston. Not impossible, but not exactly probable either. Reminder, I would have had Houston winning if not for my mistake. I still think my final outcome is very obtainable, and I’m looking forward to seeing what happens. I’m planning on posting an update after this chaos is over, we’ll have to see what happens.</p>
+<p>Thanks for reading my first post, appreciate those of you that took the time to make it this far, I wish you all the best of luck with your brackets (although I still want mine to be better), have a good one.</p>
+<p>-B</p>
+
+    </div>
+  </article>
+
+  
+
+
+</main>
+
+      <footer class="footer">
+        <ul class="footer-links">
+          <li>
+            <a href="/index.xml" type="application/rss+xml" target="_blank">RSS feed</a>
+          </li>
+          <li>
+            <a href="https://gohugo.io/" class="footer-links-kudos">Made with <img src="/images/hugo-logo.png" alt="Img link to Hugo website" width="22" height="22"></a>
+          </li>
+        </ul>
+      </footer>
+
+    </div>
+    
+
+
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/highlight.min.js"></script>
+
+
+
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/languages/r.min.js"></script>
+<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/9.12.0/languages/yaml.min.js"></script>
+<script>hljs.configure({languages: []}); hljs.initHighlightingOnLoad();</script>
+
+
+
+    
+
+    
+  </body>
+</html>
+
