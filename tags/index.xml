@@ -5,6 +5,52 @@
     <link>http://brandenstates.github.io/tags/</link>
     <description>Recent content in Tags on Branden States&#39; Github Site</description>
     <generator>Hugo -- gohugo.io</generator>
-    <language>en-us</language><atom:link href="http://brandenstates.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+    <language>en-us</language>
+    <lastBuildDate>Sat, 27 Mar 2021 00:00:00 +0000</lastBuildDate><atom:link href="http://brandenstates.github.io/tags/index.xml" rel="self" type="application/rss+xml" />
+    <item>
+      <title>Machine Learning</title>
+      <link>http://brandenstates.github.io/tags/machine-learning/</link>
+      <pubDate>Sat, 27 Mar 2021 00:00:00 +0000</pubDate>
+      
+      <guid>http://brandenstates.github.io/tags/machine-learning/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>March Madness</title>
+      <link>http://brandenstates.github.io/tags/march-madness/</link>
+      <pubDate>Sat, 27 Mar 2021 00:00:00 +0000</pubDate>
+      
+      <guid>http://brandenstates.github.io/tags/march-madness/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>NCAA Basketball</title>
+      <link>http://brandenstates.github.io/tags/ncaa-basketball/</link>
+      <pubDate>Sat, 27 Mar 2021 00:00:00 +0000</pubDate>
+      
+      <guid>http://brandenstates.github.io/tags/ncaa-basketball/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>Random Forests</title>
+      <link>http://brandenstates.github.io/tags/random-forests/</link>
+      <pubDate>Sat, 27 Mar 2021 00:00:00 +0000</pubDate>
+      
+      <guid>http://brandenstates.github.io/tags/random-forests/</guid>
+      <description></description>
+    </item>
+    
+    <item>
+      <title>Sports Data Analytics</title>
+      <link>http://brandenstates.github.io/tags/sports-data-analytics/</link>
+      <pubDate>Sat, 27 Mar 2021 00:00:00 +0000</pubDate>
+      
+      <guid>http://brandenstates.github.io/tags/sports-data-analytics/</guid>
+      <description></description>
+    </item>
+    
   </channel>
 </rss>

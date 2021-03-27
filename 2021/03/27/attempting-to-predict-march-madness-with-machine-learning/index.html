@@ -78,7 +78,7 @@
 <link href="http://brandenstates.github.io/2021/03/27/attempting-to-predict-march-madness-with-machine-learning/index_files/lightable/lightable.css" rel="stylesheet" />
 
 
-<p>Alright folks, here we are. The first of (hopefully) many blog posts, and this one is on a project that has been an absolute blast. For my Advanced Sports Data course, my professor gave us the assignment of using our choice of various machine learning methods to create a model to predict the outcome of men’s college basketball games based on prior data, and use that model to attempt to find the results of the NCAA tournament this year. We were taught how to create the model using various methods, but it was up to us to find the statistics we felt had the best chance of determining the outcomes of games. At the time of writing this, my bracket is actually doing pretty well, so I’m going to walk through how I did it.</p>
+<p>Alright folks, here we are. The first of (hopefully) many blog posts, and this one is on a project that has been an absolute blast. For my Advanced Sports Data course, my professor gave us the assignment of using our choice of various machine learning methods to create a model to predict the outcome of men’s college basketball games based on prior data, and use that model to attempt to find the results of the NCAA tournament this year. We were taught how to create the model using various methods, but it was up to us to find the statistics we felt had the best chance of determining the outcomes of games. At the time of writing this, my bracket is actually doing pretty well, so here’s how I did it.</p>
 <pre class="r"><code>games &lt;- read_csv(&quot;cbblogs1521.csv&quot;) %&gt;% 
   mutate(
     TrueShooting = (TeamScore / (2 * (TeamFGA + 0.475 * TeamFTA))),
@@ -153,7 +153,7 @@ summary(rf_recipe)</code></pre>
 ## 1 accuracy binary         0.740
 ## 2 kap      binary         0.480</code></pre>
 <p>Now for the testing metrics. Remember, the model hasn’t seen this data so we can’t expect it to be as accurate. Still, when used against data it hasn’t seen before, it predicted the outcome of games 74% of the time, which is still pretty solid.</p>
-<p>Now it’s time to start applying our model to this year’s tournament. Now remember, I created this bracket prior to the tournament starting. Let’s start with the play in games.</p>
+<p>It’s time to start applying our model to this year’s tournament. Now remember, I created this bracket prior to the tournament starting. Let’s start with the play in games.</p>
 <pre class="r"><code>playinround %&gt;% select(Team, .pred_class, Opponent, .pred_L) %&gt;% kable() %&gt;% kable_styling(bootstrap_options = c(&quot;striped&quot;, &quot;condensed&quot;))</code></pre>
 <table class="table table-striped table-condensed" style="margin-left: auto; margin-right: auto;">
 <thead>
@@ -1512,9 +1512,9 @@ Baylor
 </table>
 <p>My model says Gonzaga’s got a 63% chance of beating Baylor and winning the national championship. It also had them beating Houston, so the final result of my bracket stays the same regardless.</p>
 <p>So looking back, I made some human errors that messed up what is already a pretty decent bracket. Prior to today’s games, I’m in the top .6% of ESPN Tournament Challenge brackets and tied for first in the class. I’m now wondering what could have been, and a blog post that was supposed to be bragging about my pretty awesome bracket is now just pointing out that it could have been better. So, here’s where I’m at so far.</p>
-<p><img src="bracket.png" /></p>
+<p><a href="https://fantasy.espn.com/tournament-challenge-bracket/2021/en/entry?entryID=48742608" class="uri">https://fantasy.espn.com/tournament-challenge-bracket/2021/en/entry?entryID=48742608</a></p>
 <p>In order to stay in first in my class, I need UCLA and Syracuse to pull off upsets against Alabama and Houston. Not impossible, but not exactly probable either. Reminder, I would have had Houston winning if not for my mistake. I still think my final outcome is very obtainable, and I’m looking forward to seeing what happens. I’m planning on posting an update after this chaos is over, we’ll have to see what happens.</p>
-<p>Thanks for reading my first post, appreciate those of you that took the time to make it this far, I wish you all the best of luck with your brackets (although I still want mine to be better), have a good one.</p>
+<p>Thanks for reading my first post, appreciate those of you that took the time to make it this far, I wish you all the best of luck with your brackets (although I still want mine to be better), have a good one!</p>
 <p>-B</p>
 
     </div>
